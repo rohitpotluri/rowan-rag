@@ -13,24 +13,24 @@ os.makedirs(save_dir_before, exist_ok=True)
 os.makedirs(save_dir_after, exist_ok=True)
 os.makedirs(plot_dir, exist_ok=True)
 
-# Step 1: Load model and move to GPU
+# Step 1: Load model (DOWNLOAD from Huggingface)
 print("Downloading and loading Mistral 7B model...")
 model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32)
+model.save_pretrained(save_dir_before)  # Save full original model before pruning
 model = model.to("cuda")
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-# Save original model
-model.save_pretrained(save_dir_before)
-tokenizer.save_pretrained(save_dir_before)
 
 # Step 2: Weight histogram before pruning
-all_weights = []
+print("Calculating weight stats before pruning...")
+all_weights_tensor = []
 for name, param in model.named_parameters():
     if 'weight' in name and param.requires_grad:
-        all_weights.append(param.data.detach().cpu().numpy().flatten())
-all_weights_flat = np.concatenate(all_weights)
+        all_weights_tensor.append(param.data.view(-1))
+all_weights_concat = torch.cat(all_weights_tensor)
 
-plt.hist(all_weights_flat, bins=100, color='blue')
+# For plotting
+all_weights_np = all_weights_concat.detach().cpu().numpy()
+
+plt.hist(all_weights_np, bins=100, color='blue')
 plt.title('Weight Distribution Before Pruning')
 plt.xlabel('Weight Value')
 plt.ylabel('Frequency')
@@ -38,53 +38,71 @@ plt.savefig(os.path.join(plot_dir, 'histogram_before_pruning.png'))
 plt.show()
 
 print("\n=== Weight Statistics BEFORE Pruning ===")
-print(f"Mean: {np.mean(all_weights_flat):.6f}")
-print(f"Std Dev: {np.std(all_weights_flat):.6f}")
-print(f"Min: {np.min(all_weights_flat):.6f}")
-print(f"Max: {np.max(all_weights_flat):.6f}")
-zero_ratio_before = np.sum(all_weights_flat == 0) / len(all_weights_flat) * 100
+print(f"Mean: {np.mean(all_weights_np):.6f}")
+print(f"Std Dev: {np.std(all_weights_np):.6f}")
+print(f"Min: {np.min(all_weights_np):.6f}")
+print(f"Max: {np.max(all_weights_np):.6f}")
+zero_ratio_before = np.sum(all_weights_np == 0) / len(all_weights_np) * 100
 print(f"Zero Weights: {zero_ratio_before:.2f}%")
 
 # Step 3: Prune %
-prune_percent = float(input("\nEnter % of smallest magnitude weights to prune (recommended 10): "))
+prune_percent = float(input("\nEnter % of smallest magnitude weights to prune per layer (recommended 10): "))
 
-# Step 4: Prune
-thresholds = []
+# Step 4: Layerwise Approximate Pruning
+print("\nStarting layerwise pruning with sampling...")
 for name, param in model.named_parameters():
     if 'weight' in name and param.requires_grad:
-        tensor = param.data
-        threshold = torch.quantile(tensor.abs(), prune_percent / 100)
-        mask = tensor.abs() > threshold
-        param.data = tensor * mask
-        thresholds.append((name, threshold.item()))
+        weight_abs = param.data.abs()
+        num_elements = weight_abs.numel()
 
-print(f"\nPruning complete. Applied threshold on weights based on {prune_percent}% smallest magnitudes.")
+        if num_elements > 10_000_000:
+            # Sample only 10 million values randomly
+            indices = torch.randperm(num_elements, device=weight_abs.device)[:10_000_000]
+            sample = weight_abs.view(-1)[indices]
+            threshold = torch.quantile(sample, prune_percent / 100)
+            print(f"Layer {name}: sampled threshold {threshold.item():.6f}")
+        else:
+            threshold = torch.quantile(weight_abs.view(-1), prune_percent / 100)
+            print(f"Layer {name}: full tensor threshold {threshold.item():.6f}")
 
-# Step 5: Weight histogram after pruning
-all_weights_after = []
+        mask = weight_abs > threshold
+        param.data.mul_(mask)
+
+print(f"\nPruning complete. Applied {prune_percent}% smallest weights per layer individually (with sampling if needed).")
+
+# Step 5: Weight histogram after pruning (using sampled weights)
+print("Calculating weight stats after pruning...")
+all_weights_sample_after = []
 for name, param in model.named_parameters():
     if 'weight' in name and param.requires_grad:
-        all_weights_after.append(param.data.detach().cpu().numpy().flatten())
-all_weights_flat_after = np.concatenate(all_weights_after)
+        weight_flat = param.data.view(-1)
+        sample_size = min(500_000, weight_flat.numel())
+        indices = torch.randperm(weight_flat.numel(), device=weight_flat.device)[:sample_size]
+        sampled = weight_flat[indices]
+        all_weights_sample_after.append(sampled)
 
-plt.hist(all_weights_flat_after, bins=100, color='green')
-plt.title('Weight Distribution After Pruning')
+all_weights_concat_sample_after = torch.cat(all_weights_sample_after)
+
+all_weights_np_after = all_weights_concat_sample_after.detach().cpu().numpy()
+
+plt.hist(all_weights_np_after, bins=100, color='green')
+plt.title('Weight Distribution After Pruning (Sampled)')
 plt.xlabel('Weight Value')
 plt.ylabel('Frequency')
 plt.savefig(os.path.join(plot_dir, 'histogram_after_pruning.png'))
 plt.show()
 
-print("\n=== Weight Statistics AFTER Pruning ===")
-print(f"Mean: {np.mean(all_weights_flat_after):.6f}")
-print(f"Std Dev: {np.std(all_weights_flat_after):.6f}")
-print(f"Min: {np.min(all_weights_flat_after):.6f}")
-print(f"Max: {np.max(all_weights_flat_after):.6f}")
-zero_ratio_after = np.sum(all_weights_flat_after == 0) / len(all_weights_flat_after) * 100
+print("\n=== Weight Statistics AFTER Pruning (sampled) ===")
+print(f"Mean: {np.mean(all_weights_np_after):.6f}")
+print(f"Std Dev: {np.std(all_weights_np_after):.6f}")
+print(f"Min: {np.min(all_weights_np_after):.6f}")
+print(f"Max: {np.max(all_weights_np_after):.6f}")
+zero_ratio_after = np.sum(all_weights_np_after == 0) / len(all_weights_np_after) * 100
 print(f"Zero Weights: {zero_ratio_after:.2f}%")
 
 # Step 6: Save pruned model
+print("\nSaving pruned model...")
 model.save_pretrained(save_dir_after)
-tokenizer.save_pretrained(save_dir_after)
 
 # Step 7: Model size comparison
 def get_dir_size_mb(path):
