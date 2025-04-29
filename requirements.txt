@@ -8,3 +8,9 @@ langchain-groq
 PyPDF2
 python-dotenv
 pypdf
+transformers 
+accelerate 
+peft 
+bitsandbytes 
+matplotlib
+huggingface_hub
