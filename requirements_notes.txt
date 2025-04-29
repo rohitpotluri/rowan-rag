@@ -1,0 +1,10 @@
+langchain_google_genai - Integrates Google AI with LangChain for advanced language tasks.
+langchain - Framework for building LLM-powered applications, enabling prompt engineering, data retrieval, and execution.
+streamlit - Python library for building web apps and data visualizations without front-end experience.
+langchain_community	- Provides a community-driven ecosystem of tools and integrations for LangChain.
+faiss-cpu - Efficient similarity search library for large datasets, often used as an alternative to cosine similarity.
+groq - AI accelerator hardware and software platform for machine learning workloads.
+langchain-groq - Integrates Groq hardware with LangChain for accelerated LLM execution.
+PyPDF2 - Library for working with PDF files, allowing manipulation and extraction of text and images.
+python-dotenv - Library for loading environment variables from a .env file into the environment.
+pypdf - Library for reading and writing PDF files, providing a more user-friendly interface than PyPDF2.

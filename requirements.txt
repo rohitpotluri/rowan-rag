@@ -1,0 +1,10 @@
+langchain_google_genai
+langchain
+streamlit
+langchain_community
+faiss-cpu # alternative to cosine similarity
+groq
+langchain-groq
+PyPDF2
+python-dotenv
+pypdf
