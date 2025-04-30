@@ -1,0 +1,17 @@
+Prompt: 'How is new year celebrated in the United States?'
+
+Final Quantized:
+How is new year celebrated in the United States?
+
+- New Year’s Eve is celebrated on December 31, the last day of the Gregorian calendar. It is a time to reflect on the past year and to make resolutions for the coming year. Many people attend parties
+
+Pruned-only:
+How is new year celebrated in the United States?
+
+- New Year’s Eve is celebrated on December 31, the last day of the Gregorian calendar. It is a time to reflect on the past year and to make resolutions for the coming year. Many people attend parties
+
+Original:
+How is new year celebrated in the United States?
+
+- New Year’s Eve is celebrated on December 31, the last day of the Gregorian calendar. It is a time to reflect on the past year and to make resolutions for the coming year. Many people attend parties
+
